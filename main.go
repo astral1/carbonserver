@@ -423,19 +423,19 @@ func fetchHandler(wr http.ResponseWriter, req *http.Request) {
 		if carbonlink != nil {
 			cachedPoints := carbonlink.Query(metric, int(step))
 			if len(cachedPoints.Datapoints) != 0 {
-				logger.Logf("end stored point from %d to %d (step: %d)", fromTime, untilTime, step)
-				logger.Logf("get cached metrics from %d to %d", cachedPoints.From, cachedPoints.Until)
+				logger.Debugf("end stored point from %d to %d (step: %d)", fromTime, untilTime, step)
+				logger.Debugf("get cached metrics from %d to %d", cachedPoints.From, cachedPoints.Until)
 				oldSize := len(values)
 				newSize := oldSize + (cachedPoints.Until - int(untilTime))
 				if oldSize < newSize {
 					untilTime = int32(cachedPoints.Until)
-					logger.Logf("size changed (%d) -> (%d)", oldSize, newSize)
+					logger.Debugf("size changed (%d) -> (%d)", oldSize, newSize)
 					newValues := make([]float64, newSize)
 					copy(newValues, values)
 					values = newValues
 				}
 				for timestamp, cachedPoint := range cachedPoints.Datapoints {
-					cacheIndex := (timestamp-int(fromTime))/int(step) - 1
+					cacheIndex := (timestamp - int(fromTime)) / int(step)
 					values[cacheIndex] = cachedPoint
 				}
 			}
@@ -627,9 +627,13 @@ func main() {
 	expvar.NewString("BuildVersion").Set(BuildVersion)
 	log.Println("starting carbonserver", BuildVersion)
 
-	carbonlink = BuildCarbonlink(*link, *maxprocs)
+	carbonlink = BuildCarbonlink(*link, *maxprocs*8)
 	if carbonlink == nil {
 		logger.Logf("disabled carbonlink support")
+	} else {
+		carbonlink.SetTimeout(500 * time.Millisecond)
+		go carbonlink.Refresh()
+		defer carbonlink.Close()
 	}
 
 	loglevel := mlog.Normal
