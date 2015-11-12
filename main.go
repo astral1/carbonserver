@@ -435,6 +435,9 @@ func fetchHandler(wr http.ResponseWriter, req *http.Request) {
 					values = newValues
 				}
 				for timestamp, cachedPoint := range cachedPoints.Datapoints {
+					if timestamp >= int(untilTime) {
+						continue
+					}
 					cacheIndex := (timestamp - int(fromTime)) / int(step)
 					values[cacheIndex] = cachedPoint
 				}
