@@ -627,9 +627,13 @@ func main() {
 	expvar.NewString("BuildVersion").Set(BuildVersion)
 	log.Println("starting carbonserver", BuildVersion)
 
-	carbonlink = BuildCarbonlink(*link, *maxprocs)
+	carbonlink = BuildCarbonlink(*link, *maxprocs*8)
 	if carbonlink == nil {
 		logger.Logf("disabled carbonlink support")
+	} else {
+		carbonlink.SetTimeout(500 * time.Millisecond)
+		go carbonlink.Refresh()
+		defer carbonlink.Close()
 	}
 
 	loglevel := mlog.Normal
