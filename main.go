@@ -595,19 +595,15 @@ func infoHandler(wr http.ResponseWriter, req *http.Request) {
 }
 
 func BuildCarbonlink(link int, size int) *cl.CarbonlinkPool {
-	linkAddress := fmt.Sprintf("127.0.0.1:%d", link)
-
-	if link != 0 {
-		logger.Logf("using carbonlink with port(%s)", linkAddress)
-		carbonlink := cl.NewCarbonlinkPool(linkAddress, size)
-		if carbonlink == nil {
-			logger.Logf("failed to establish carbonlink : %s", linkAddress)
-		} else {
-			return carbonlink
-		}
+	if link == 0 {
+		return nil
 	}
 
-	return nil
+	linkAddress := fmt.Sprintf("127.0.0.1:%d", link)
+
+	logger.Logf("using carbonlink with port(%s)", linkAddress)
+	carbonlink := cl.NewCarbonlinkPool(linkAddress, size)
+	return carbonlink
 }
 
 func main() {
@@ -621,7 +617,9 @@ func main() {
 	logtostdout := flag.Bool("stdout", false, "log also to stdout")
 	scanFrequency := flag.Duration("scanfreq", 0, "file index scan frequency (0 to disable file index)")
 	interval := flag.Duration("i", 60*time.Second, "interval to report internal statistics to graphite")
-	link := flag.Int("link", 0, "Local Carbonlink port. 0 is disable.")
+	link := flag.Int("link", 0, "using local carbonlink port (0 to disable carbonlink. default is 0)")
+	linkFactor := flag.Int("linksize", 8, "factor for determining connection pool size (multiply with maxprocs)")
+	linkTimeout := flag.Duration("linktimeout", 500, "read timeout for querying to carbonlink")
 
 	flag.Parse()
 
@@ -630,12 +628,13 @@ func main() {
 	expvar.NewString("BuildVersion").Set(BuildVersion)
 	log.Println("starting carbonserver", BuildVersion)
 
-	carbonlink = BuildCarbonlink(*link, *maxprocs*8)
+	carbonlink = BuildCarbonlink(*link, (*maxprocs)*(*linkFactor))
 	if carbonlink == nil {
 		logger.Logf("disabled carbonlink support")
 	} else {
-		carbonlink.SetTimeout(500 * time.Millisecond)
-		go carbonlink.Refresh()
+		logger.Logf("initialize carbonlink pool with size: %d, timeout: %s", (*maxprocs)*(*linkFactor), *linkTimeout)
+		carbonlink.SetTimeout(*linkTimeout)
+		carbonlink.StartMaintenance()
 		defer carbonlink.Close()
 	}
 
