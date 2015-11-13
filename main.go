@@ -20,7 +20,6 @@ import (
 	"time"
 	"unsafe"
 
-	cl "github.com/astral1/carbonlink/client"
 	pb "github.com/dgryski/carbonzipper/carbonzipperpb"
 	"github.com/dgryski/carbonzipper/mlog"
 	"github.com/dgryski/go-trigram"
@@ -29,6 +28,7 @@ import (
 	whisper "github.com/grobian/go-whisper"
 	pickle "github.com/kisielk/og-rek"
 	g2g "github.com/peterbourgon/g2g"
+	cl "gopkg.in/astral1/carbonlink.v0/client"
 )
 
 var config = struct {
