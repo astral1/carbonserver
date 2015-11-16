@@ -28,6 +28,7 @@ import (
 	whisper "github.com/grobian/go-whisper"
 	pickle "github.com/kisielk/og-rek"
 	g2g "github.com/peterbourgon/g2g"
+	cl "gopkg.in/astral1/carbonlink.v1/client"
 )
 
 var config = struct {
@@ -40,6 +41,8 @@ var config = struct {
 	MaxGlobs:    10,
 	Buckets:     10,
 }
+
+var carbonlink cl.Carbonlink
 
 // grouped expvars for /debug/vars and graphite
 var Metrics = struct {
@@ -416,6 +419,31 @@ func fetchHandler(wr http.ResponseWriter, req *http.Request) {
 		fromTime := int32(points.FromTime())
 		untilTime := int32(points.UntilTime())
 		step := int32(points.Step())
+
+		if carbonlink != nil {
+			cachedPoints := carbonlink.Query(metric, int(step))
+			if len(cachedPoints.Datapoints) != 0 {
+				logger.Debugf("end stored point from %d to %d (step: %d)", fromTime, untilTime, step)
+				logger.Debugf("get cached metrics from %d to %d", cachedPoints.From, cachedPoints.Until)
+				oldSize := len(values)
+				newSize := oldSize + (cachedPoints.Until - int(untilTime))
+				if oldSize < newSize {
+					untilTime = int32(cachedPoints.Until)
+					logger.Debugf("size changed (%d) -> (%d)", oldSize, newSize)
+					newValues := make([]float64, newSize)
+					copy(newValues, values)
+					values = newValues
+				}
+				for timestamp, cachedPoint := range cachedPoints.Datapoints {
+					if timestamp >= int(untilTime) {
+						continue
+					}
+					cacheIndex := (timestamp - int(fromTime)) / int(step)
+					values[cacheIndex] = cachedPoint
+				}
+			}
+		}
+
 		response := pb.FetchResponse{
 			Name:      proto.String(metric),
 			StartTime: &fromTime,
@@ -566,6 +594,18 @@ func infoHandler(wr http.ResponseWriter, req *http.Request) {
 	return
 }
 
+func BuildCarbonlink(link int, size int) cl.Carbonlink {
+	if link == 0 {
+		return nil
+	}
+
+	linkAddress := fmt.Sprintf("127.0.0.1:%d", link)
+
+	logger.Logf("using carbonlink with port(%s)", linkAddress)
+	carbonlink := cl.NewCarbonlinkPool(linkAddress, size)
+	return carbonlink
+}
+
 func main() {
 	port := flag.Int("p", 8080, "port to bind to")
 	verbose := flag.Bool("v", false, "enable verbose logging")
@@ -577,6 +617,9 @@ func main() {
 	logtostdout := flag.Bool("stdout", false, "log also to stdout")
 	scanFrequency := flag.Duration("scanfreq", 0, "file index scan frequency (0 to disable file index)")
 	interval := flag.Duration("i", 60*time.Second, "interval to report internal statistics to graphite")
+	link := flag.Int("link", 0, "using local carbonlink port (0 to disable carbonlink. default is 0)")
+	linkFactor := flag.Int("linksize", 8, "factor for determining connection pool size (multiply with maxprocs)")
+	linkTimeout := flag.Duration("linktimeout", 500, "read timeout for querying to carbonlink")
 
 	flag.Parse()
 
@@ -584,6 +627,16 @@ func main() {
 
 	expvar.NewString("BuildVersion").Set(BuildVersion)
 	log.Println("starting carbonserver", BuildVersion)
+
+	carbonlink = BuildCarbonlink(*link, (*maxprocs)*(*linkFactor))
+	if carbonlink == nil {
+		logger.Logf("disabled carbonlink support")
+	} else {
+		logger.Logf("initialize carbonlink pool with size: %d, timeout: %s", (*maxprocs)*(*linkFactor), *linkTimeout)
+		carbonlink.SetTimeout(*linkTimeout)
+		carbonlink.Start()
+		defer carbonlink.Close()
+	}
 
 	loglevel := mlog.Normal
 	if *verbose {
