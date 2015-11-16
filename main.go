@@ -42,7 +42,7 @@ var config = struct {
 	Buckets:     10,
 }
 
-var carbonlink *cl.Carbonlink
+var carbonlink cl.Carbonlink
 
 // grouped expvars for /debug/vars and graphite
 var Metrics = struct {
@@ -594,7 +594,7 @@ func infoHandler(wr http.ResponseWriter, req *http.Request) {
 	return
 }
 
-func BuildCarbonlink(link int, size int) *cl.Carbonlink {
+func BuildCarbonlink(link int, size int) cl.Carbonlink {
 	if link == 0 {
 		return nil
 	}
