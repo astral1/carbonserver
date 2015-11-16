@@ -28,7 +28,7 @@ import (
 	whisper "github.com/grobian/go-whisper"
 	pickle "github.com/kisielk/og-rek"
 	g2g "github.com/peterbourgon/g2g"
-	cl "gopkg.in/astral1/carbonlink.v0/client"
+	cl "gopkg.in/astral1/carbonlink.v1/client"
 )
 
 var config = struct {
