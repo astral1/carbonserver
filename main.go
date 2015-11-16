@@ -42,7 +42,7 @@ var config = struct {
 	Buckets:     10,
 }
 
-var carbonlink *cl.CarbonlinkPool
+var carbonlink *cl.Carbonlink
 
 // grouped expvars for /debug/vars and graphite
 var Metrics = struct {
@@ -594,7 +594,7 @@ func infoHandler(wr http.ResponseWriter, req *http.Request) {
 	return
 }
 
-func BuildCarbonlink(link int, size int) *cl.CarbonlinkPool {
+func BuildCarbonlink(link int, size int) *cl.Carbonlink {
 	if link == 0 {
 		return nil
 	}
@@ -634,7 +634,7 @@ func main() {
 	} else {
 		logger.Logf("initialize carbonlink pool with size: %d, timeout: %s", (*maxprocs)*(*linkFactor), *linkTimeout)
 		carbonlink.SetTimeout(*linkTimeout)
-		carbonlink.StartMaintenance()
+		carbonlink.Start()
 		defer carbonlink.Close()
 	}
 
